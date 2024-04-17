@@ -1,5 +1,6 @@
 const express = require('express');
 const fs = require('fs').promises;
+const crypto = require('crypto');
 
 const app = express();
 app.use(express.json());
@@ -40,6 +41,17 @@ app.get('/talker/:id', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: 'Erro ao ler arquivo.' });
   }
+});
+
+app.post('/login', (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email e senha são obrigatórios.' });
+  }
+
+  const token = crypto.randomBytes(8).toString('hex');
+  res.status(HTTP_OK_STATUS).json({ token });
 });
 
 // não remova esse endpoint, e para o avaliador funcionar
