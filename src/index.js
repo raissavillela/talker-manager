@@ -6,8 +6,9 @@ const app = express();
 app.use(express.json());
 
 const HTTP_OK_STATUS = 200;
-const HTTP_NOT_FOUND_STATUS = 404;
 const PORT = process.env.PORT || '3001';
+const HTTP_NOT_FOUND_STATUS = 404;
+const HTTP_BAD_REQUEST_STATUS = 400;
 
 app.get('/talker', async (req, res) => {
   try {
@@ -43,13 +44,34 @@ app.get('/talker/:id', async (req, res) => {
   }
 });
 
-app.post('/login', (req, res) => {
-  const { email, password } = req.body;
-
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email e senha são obrigatórios.' });
+const validEmail = (req, res, next) => {
+  const { email } = req.body;
+  if (!email || email.trim() === '') {
+    return res.status(HTTP_BAD_REQUEST_STATUS)
+      .json({ message: 'O campo "email" é obrigatório' });
   }
 
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(HTTP_BAD_REQUEST_STATUS)
+      .json({ message: 'O "email" deve ter o formato "email@email.com"' });
+  }
+  next();
+};
+const validPassword = (req, res, next) => {
+  const { password } = req.body;
+  if (!password || password.trim() === '') {
+    return res.status(HTTP_BAD_REQUEST_STATUS)
+      .json({ message: 'O campo "password" é obrigatório' });
+  }
+  if (password.length < 6) {
+    return res.status(HTTP_BAD_REQUEST_STATUS)
+      .json({ message: 'O "password" deve ter pelo menos 6 caracteres' });
+  }
+  next();
+};
+
+app.post('/login', validEmail, validPassword, (req, res) => {
   const token = crypto.randomBytes(8).toString('hex');
   res.status(HTTP_OK_STATUS).json({ token });
 });
