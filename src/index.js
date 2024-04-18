@@ -2,13 +2,58 @@ const express = require('express');
 const fs = require('fs').promises;
 const crypto = require('crypto');
 
-const app = express();
-app.use(express.json());
+const bodyParser = require('body-parser');
+const {
+  validateToken,
+  validateName,
+  ageValidation,
+  validateTalk,
+} = require('./validator');
 
-const HTTP_OK_STATUS = 200;
-const PORT = process.env.PORT || '3001';
-const HTTP_NOT_FOUND_STATUS = 404;
+const { addSpeakers, getSpeakers, updateSpeakers } = require('./TalkerController');
+
 const HTTP_BAD_REQUEST_STATUS = 400;
+const HTTP_NOT_FOUND_STATUS = 404;
+const HTTP_OK_STATUS = 200;
+const HTTP_NO_CONTENT_STATUS = 204;
+const HTTP_INTERNAL_SERVER_ERROR_STATUS = 500;
+const PORT = process.env.PORT || '3001';
+
+const app = express();
+app.use(bodyParser.json());
+
+app.post('/talker', validateToken, validateName, ageValidation, validateTalk, addSpeakers);
+app.put('/talker/:id', validateToken, validateName, ageValidation, validateTalk, updateSpeakers);
+
+app.delete('/talker/:id', validateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    let talkers = await getSpeakers();
+
+    const talkerIndex = talkers.findIndex((talker) => talker.id === parseInt(id, 10));
+    if (talkerIndex === -1) {
+      return res.status(HTTP_NOT_FOUND_STATUS)
+        .json({ message: 'Pessoa palestrante não encontrada' });
+    }
+    talkers = talkers.filter((talker) => talker.id !== parseInt(id, 10));
+    await fs.writeFile('./src/talker.json', JSON.stringify(talkers, null, 2));
+    res.sendStatus(HTTP_NO_CONTENT_STATUS);
+  } catch (error) {
+    console.error(`Erro ao deletar a pessoa palestrante: ${error.message}`);
+    res.status(HTTP_INTERNAL_SERVER_ERROR_STATUS)
+      .json({ message: 'Erro ao deletar a pessoa palestrante' });
+  }
+});
+
+app.get('/talker', async (req, res) => {
+  try {
+    const speakers = await getSpeakers();
+    res.status(200).json(speakers);
+  } catch (error) {
+    console.error(`Erro ao obter os palestrantes: ${error.message}`);
+    res.status(500).json({ message: 'Erro ao obter os palestrantes' });
+  }
+});
 
 app.get('/talker', async (req, res) => {
   try {
@@ -21,12 +66,12 @@ app.get('/talker', async (req, res) => {
       res.status(HTTP_OK_STATUS).json(talkers);
     }
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao ler arquivo' });
+    res.status(500).json({ error: 'Erro ao ler arquivo de palestrantes' });
   }
 });
 
 app.get('/talker/:id', async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params.id, 5);
 
   try {
     const data = await fs.readFile('src/talker.json', 'utf8');
@@ -40,7 +85,7 @@ app.get('/talker/:id', async (req, res) => {
       res.status(HTTP_NOT_FOUND_STATUS).json({ message: 'Pessoa palestrante não encontrada' });
     }
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao ler arquivo.' });
+    res.status(500).json({ error: 'Erro ao ler arquivo de palestrantes.' });
   }
 });
 
@@ -58,6 +103,7 @@ const validEmail = (req, res, next) => {
   }
   next();
 };
+
 const validPassword = (req, res, next) => {
   const { password } = req.body;
   if (!password || password.trim() === '') {
@@ -76,11 +122,9 @@ app.post('/login', validEmail, validPassword, (req, res) => {
   res.status(HTTP_OK_STATUS).json({ token });
 });
 
-// não remova esse endpoint, e para o avaliador funcionar
 app.get('/', (_request, response) => {
   response.status(HTTP_OK_STATUS).send();
 });
-
 app.listen(PORT, () => {
   console.log('Online');
 });
